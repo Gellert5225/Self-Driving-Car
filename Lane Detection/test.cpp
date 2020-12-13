@@ -13,7 +13,7 @@ void processFrame(Mat &image) {
     double rho = 2;
     double theta = CV_PI / 180;
     double threshold = 50;
-    double minLineLength = 50;
+    double minLineLength = 20;
     double maxLineGap = 200;
 
     double width = image.size().width;
@@ -28,10 +28,10 @@ void processFrame(Mat &image) {
     Mat mask = cv::Mat::zeros(cannyDst.size(), cannyDst.type());
 
     Point pts[1][4];
-    pts[0][0] = Point(width / 2 - width / 10, height / 2 + height / 10);
-    pts[0][1] = Point(width / 8, height);
-    pts[0][2] = Point(width - width / 8, height);
-    pts[0][3] = Point(width / 2 + width / 10, height / 2 + height / 10);
+    pts[0][0] = Point(width / 2 - width / 10, height / 2 + height / 8);
+    pts[0][1] = Point(width / 10, height);
+    pts[0][2] = Point(width - width / 10, height);
+    pts[0][3] = Point(width / 2 + width / 10, height / 2 + height / 8);
     int npoints = 4;
     const Point* points[1] = {pts[0]};
 
@@ -42,13 +42,17 @@ void processFrame(Mat &image) {
     cvtColor(cannyDst, color_dst, COLOR_GRAY2BGR);
     HoughLinesP(cannyDst, lines, rho, theta, threshold, minLineLength, maxLineGap);
 
+    Mat line_img = cv::Mat::zeros(color_dst.size(), color_dst.type());
+
     for (size_t i = 0; i < lines.size(); i++) {
         Vec4i l = lines[i];
-        line( color_dst, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,0,255), 3, 10);
+        double slope = double(l[3] - l[1]) / double(l[2] - l[0]);
+        if (abs(slope) < 0.5) continue;
+        line( line_img, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,0,255), 6, 1, 0);
     }
     
     // combine
-    addWeighted(color_dst, 0.8, image, 1, 0, image);
+    addWeighted(line_img, 0.8, image, 1, 0, image);
 }
 
 int main(int argc, char** argv ) {
