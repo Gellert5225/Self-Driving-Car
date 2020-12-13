@@ -4,7 +4,8 @@
             "name": "Linux",
             "includePath": [
                 "${default}",
-                "/usr/local/include/opencv4/**"
+                "/usr/local/include/opencv4/**",
+                "/usr/local/include/"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang",

@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <opencv2/opencv.hpp>
 #include <iostream>
+#include "NumCpp.hpp"
 using namespace cv;
 
-void processFrame(Mat &image) {
+void processFrame(Mat &image, Mat &output) {
     Mat gray;
     Mat cannyDst;
     Mat bluredGray;
@@ -44,15 +45,70 @@ void processFrame(Mat &image) {
 
     Mat line_img = cv::Mat::zeros(color_dst.size(), color_dst.type());
 
+    std::vector<int> left_x;
+    std::vector<int> left_y;
+    std::vector<int> right_x;
+    std::vector<int> right_y;
+
     for (size_t i = 0; i < lines.size(); i++) {
         Vec4i l = lines[i];
         double slope = double(l[3] - l[1]) / double(l[2] - l[0]);
         if (abs(slope) < 0.5) continue;
-        line( line_img, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,0,255), 6, 1, 0);
+        if (slope < 0) {
+            left_x.push_back(l[0]);
+            left_x.push_back(l[2]);
+            left_y.push_back(l[1]);
+            left_y.push_back(l[3]);
+        } else {
+            right_x.push_back(l[0]);
+            right_x.push_back(l[2]);
+            right_y.push_back(l[1]);
+            right_y.push_back(l[3]);
+        }
+    }
+
+    nc::NdArray<int> left_line_x(left_x.size(), 1);
+    nc::NdArray<int> left_line_y(left_y.size(), 1);
+    nc::NdArray<int> right_line_x(right_x.size(), 1);
+    nc::NdArray<int> right_line_y(right_y.size(), 1);
+
+    for (size_t i = 0; i < left_x.size(); i++) {
+        left_line_x(i, 0) = left_x[i];
+    }
+
+    for (size_t i = 0; i < left_y.size(); i++) {
+        left_line_y(i, 0) = left_y[i];
+    }
+
+    for (size_t i = 0; i < right_x.size(); i++) {
+        right_line_x(i, 0) = right_x[i];
+    }
+
+    for (size_t i = 0; i < right_y.size(); i++) {
+        right_line_y(i, 0) = right_y[i];
     }
     
+
+    auto min_y = height * 3 / 5;
+    auto max_y = height;
+
+    auto poly_left = nc::polynomial::Poly1d<int>::fit(left_line_y, left_line_x, 1);
+    auto left_x_start = int(poly_left(min_y));
+    auto left_x_end = int(poly_left(max_y));
+
+    auto poly_right = nc::polynomial::Poly1d<int>::fit(right_line_y, right_line_x, 1);
+    auto right_x_start = int(poly_right(min_y));
+    auto right_x_end = int(poly_right(max_y));
+
+    line( line_img, Point(left_x_start, min_y), Point(left_x_end, max_y), Scalar(0,0,255), 3, LINE_AA, 0);
+    line( line_img, Point(right_x_start, min_y), Point(right_x_end, max_y), Scalar(0,0,255), 3, LINE_AA, 0);
+    
     // combine
-    addWeighted(line_img, 0.8, image, 1, 0, image);
+    Mat bgra;
+    cvtColor(line_img, bgra, cv::COLOR_BGR2BGRA);
+    cvtColor(image, image, cv::COLOR_BGR2BGRA);
+
+    addWeighted(bgra, 1, image, 1, 1, output);
 }
 
 int main(int argc, char** argv ) {
@@ -68,16 +124,16 @@ int main(int argc, char** argv ) {
     }
 
     while(1) {
-        Mat frame;
+        Mat frame, result;
         cap >> frame;
 
         if (frame.empty()) {
             break;
         }
 
-        processFrame(frame);
+        processFrame(frame, result);
 
-        imshow("Lane Detection", frame);
+        imshow("Lane Detection", result);
 
         char c=(char)waitKey(25);
         if(c==27)
