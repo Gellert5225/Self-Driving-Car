@@ -5,3 +5,7 @@
 
 **/CMakeFiles/
 **/bin/
+
+**/calibrated/
+**/calibrated_chessboards/
+**/calibrated_testimages/
