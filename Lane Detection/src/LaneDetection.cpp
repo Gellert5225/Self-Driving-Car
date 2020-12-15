@@ -39,12 +39,11 @@ void LaneDetection::begin() {
             break;
         nextFrame();
     }
-
-    video.release();
 }
 
 void LaneDetection::processFrame(cv::Mat &image, cv::Mat &output) {
-    cv::Mat cannyEdgeFrame = this->cannyEdge(image);
+    cv::Mat cannyEdgeFrame, cp;
+    this->combineSChannelAndGradient(image, cannyEdgeFrame);
     applyROI(cannyEdgeFrame);
 
     output = houghLine(cannyEdgeFrame);
@@ -72,10 +71,10 @@ void LaneDetection::applyROI(cv::Mat &input) {
     cv::Mat mask = cv::Mat::zeros(input.size(), input.type());
 
     cv::Point pts[1][4];
-    pts[0][0] = cv::Point(frameWidth / 2 - frameWidth / 10, frameHeight / 2 + frameHeight / 8);
+    pts[0][0] = cv::Point(frameWidth / 2 - frameWidth / 10, frameHeight / 2 + frameHeight / 10);
     pts[0][1] = cv::Point(frameWidth / 10, frameHeight);
     pts[0][2] = cv::Point(frameWidth - frameWidth / 10, frameHeight);
-    pts[0][3] = cv::Point(frameWidth / 2 + frameWidth / 10, frameHeight / 2 + frameHeight / 8);
+    pts[0][3] = cv::Point(frameWidth / 2 + frameWidth / 10, frameHeight / 2 + frameHeight / 10);
     int npoints = 4;
     const cv::Point* points[1] = {pts[0]};
 
@@ -150,4 +149,94 @@ cv::Mat LaneDetection::houghLine(cv::Mat &input){
     line(line_img, cv::Point(right_x_start, min_y), cv::Point(right_x_end, max_y), cv::Scalar(0,0,255), 3, cv::LINE_AA, 0);
 
     return line_img;
+}
+
+// test functions
+void LaneDetection::grayBinary(cv::Mat &input, cv::Mat &output) {
+    cv::Mat gray;
+    cv::cvtColor(input, gray, cv::COLOR_BGR2GRAY);
+    cv::imshow("gray", gray);
+    cv::threshold(gray, output, 180, 255, cv::THRESH_BINARY);
+}
+
+void LaneDetection::rChannel(cv::Mat &input, cv::Mat &output) {
+    std::vector<cv::Mat> channels;
+    cv::split(input, channels);
+    output = channels[2];
+}
+
+void LaneDetection::gChannel(cv::Mat &input, cv::Mat &output) {
+    std::vector<cv::Mat> channels;
+    cv::split(input, channels);
+    output = channels[1];
+}
+
+void LaneDetection::bChannel(cv::Mat &input, cv::Mat &output) {
+    std::vector<cv::Mat> channels;
+    cv::split(input, channels);
+    output = channels[0];
+}
+
+void LaneDetection::rBinary(cv::Mat &input, cv::Mat &output) {
+    rChannel(input, output);
+    cv::threshold(output, output, 200, 255, cv::THRESH_BINARY);
+}
+
+void LaneDetection::hChannel(cv::Mat &input, cv::Mat &output) {
+    cv::Mat hls;
+    cv::cvtColor(input, hls, cv::COLOR_BGR2HLS);
+    std::vector<cv::Mat> channels;
+    cv::split(hls, channels);
+    output = channels[0];
+}
+
+void LaneDetection::lChannel(cv::Mat &input, cv::Mat &output) {
+    cv::Mat hls;
+    cv::cvtColor(input, hls, cv::COLOR_BGR2HLS);
+    std::vector<cv::Mat> channels;
+    cv::split(hls, channels);
+    output = channels[1];
+}
+
+void LaneDetection::sChannel(cv::Mat &input, cv::Mat &output) {
+    cv::Mat hls;
+    cv::cvtColor(input, hls, cv::COLOR_BGR2HLS);
+    std::vector<cv::Mat> channels;
+    cv::split(hls, channels);
+    output = channels[2];
+}
+
+void LaneDetection::sBinary(cv::Mat &input, cv::Mat &output) {
+    sChannel(input, output);
+    cv::threshold(output, output, 170, 255, cv::THRESH_BINARY);
+}
+
+void LaneDetection::hBinary(cv::Mat &input, cv::Mat &output) {
+    hChannel(input, output);
+    cv::threshold(output, output, 15, 100, cv::THRESH_BINARY);
+}
+
+void LaneDetection::combineSChannelAndGradient(cv::Mat &input, cv::Mat &output) {
+    cv::Mat s_channel;
+    cv::Mat s_binary;
+    cv::Mat gray;
+    cv::Mat sobel_x;
+    cv::Mat scaled_sobel;
+    cv::Mat sx_binary;
+
+    sChannel(input, s_channel);
+    cv::cvtColor(input, gray, cv::COLOR_BGR2GRAY);
+
+    // sobel x
+    cv::Sobel(gray, sobel_x, CV_64F, 1, 0);
+    cv::abs(sobel_x);
+    double minVal, maxVal;
+    cv::minMaxLoc(sobel_x, &minVal, &maxVal);
+
+    sobel_x.convertTo(scaled_sobel, CV_8U);
+    scaled_sobel /= (maxVal / 255.0);
+
+    cv::threshold(scaled_sobel, sx_binary, 20, 200, cv::THRESH_BINARY);
+    sBinary(input, s_binary);
+    cv::bitwise_or(sx_binary, s_binary, output);
 }
